@@ -1,0 +1,1437 @@
+<!doctype html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Budget Tracker</title>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f5f6;
+      --card: #ffffff;
+      --ink: #050505;
+      --muted: #8c8c93;
+      --line: #e8e8eb;
+      --soft: #f0f0f2;
+      --blue: #0a84ff;
+      --shadow: 0 18px 45px rgba(0, 0, 0, 0.08);
+      --shell-width: 480px;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+    }
+
+    body.dark-mode {
+      color-scheme: dark;
+      --bg: #101012;
+      --card: #1c1c1e;
+      --ink: #f5f5f7;
+      --muted: #9a9aa2;
+      --line: #303034;
+      --soft: #2c2c2e;
+      --shadow: 0 18px 45px rgba(0, 0, 0, 0.28);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+      transition: background 180ms ease, color 180ms ease;
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+      color: inherit;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .app {
+      position: relative;
+      width: min(100%, var(--shell-width));
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: max(16px, env(safe-area-inset-top)) 22px calc(116px + env(safe-area-inset-bottom));
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      margin: 28px 0 42px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 48px;
+      padding: 0 18px;
+      border-radius: 24px;
+      background: var(--card);
+      box-shadow: var(--shadow);
+      font-size: 20px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .tool-pill {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      min-height: 48px;
+      padding: 0 16px;
+      border-radius: 24px;
+      background: var(--card);
+      box-shadow: var(--shadow);
+      flex: 0 0 auto;
+    }
+
+    .icon-button {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: transparent;
+    }
+
+    .pill svg,
+    .icon-button svg,
+    .category-icon svg,
+    .row-action svg,
+    .fab svg {
+      color: currentColor;
+    }
+
+    .pill svg *,
+    .icon-button svg *,
+    .category-icon svg *,
+    .row-action svg * {
+      stroke: currentColor;
+    }
+
+    .summary {
+      width: 100%;
+      padding: 28px 22px 24px;
+      border-radius: 28px;
+      background: var(--card);
+      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02);
+    }
+
+    .chart-card {
+      width: 100%;
+      margin-top: 18px;
+      padding: 24px 22px 24px;
+      border-radius: 28px;
+      background: var(--card);
+      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02);
+    }
+
+    .eyebrow {
+      margin: 0 0 14px;
+      color: var(--muted);
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .total {
+      margin: 0;
+      font-size: 56px;
+      line-height: 0.95;
+      font-weight: 900;
+      letter-spacing: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .summary-stats {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      margin-top: 22px;
+    }
+
+    .stat {
+      min-width: 0;
+      padding: 13px 14px;
+      border-radius: 18px;
+      background: var(--soft);
+    }
+
+    .stat-label {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .stat-value {
+      display: block;
+      margin-top: 5px;
+      font-size: 18px;
+      font-weight: 900;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .pie-layout {
+      display: grid;
+      grid-template-columns: 190px minmax(0, 1fr);
+      gap: 22px;
+      align-items: center;
+    }
+
+    .pie-chart {
+      position: relative;
+      display: grid;
+      place-items: center;
+      width: min(190px, 100%);
+      aspect-ratio: 1;
+      border-radius: 50%;
+      background: var(--soft);
+      box-shadow: inset 0 0 0 1px var(--line);
+    }
+
+    .pie-chart::after {
+      content: "";
+      width: 48%;
+      aspect-ratio: 1;
+      border-radius: 50%;
+      background: var(--card);
+      box-shadow: 0 0 0 1px var(--line);
+    }
+
+    .pie-empty {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+      text-align: center;
+      padding: 24px;
+    }
+
+    .pie-legend {
+      display: grid;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .legend-row {
+      display: grid;
+      grid-template-columns: 14px minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .legend-swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--swatch);
+    }
+
+    .legend-name {
+      color: var(--ink);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .section-title {
+      margin: 34px 22px 14px;
+      color: var(--muted);
+      font-size: 20px;
+      font-weight: 800;
+    }
+
+    .latest {
+      overflow: hidden;
+      width: 100%;
+      border-radius: 28px;
+      background: var(--card);
+    }
+
+    .expense-row {
+      display: grid;
+      grid-template-columns: 64px minmax(0, 1fr) auto;
+      gap: 14px;
+      align-items: center;
+      min-height: 82px;
+      padding: 16px 22px;
+    }
+
+    .expense-row + .expense-row .expense-main,
+    .expense-row + .expense-row .expense-side {
+      border-top: 1px solid var(--line);
+      padding-top: 16px;
+    }
+
+    .category-icon {
+      display: grid;
+      place-items: center;
+      width: 50px;
+      height: 50px;
+      border-radius: 15px;
+      background: var(--soft);
+      font-size: 25px;
+      font-weight: 900;
+    }
+
+    .expense-title {
+      font-size: 18px;
+      font-weight: 800;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .expense-date {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 17px;
+      font-weight: 650;
+    }
+
+    .expense-amount {
+      font-size: 18px;
+      font-weight: 900;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .expense-row.income .expense-amount {
+      color: #128a3c;
+    }
+
+    body.dark-mode .expense-row.income .expense-amount {
+      color: #32d76e;
+    }
+
+    .expense-side {
+      display: grid;
+      gap: 8px;
+      justify-items: end;
+    }
+
+    .row-actions {
+      display: flex;
+      gap: 6px;
+      opacity: 0.72;
+    }
+
+    .row-action {
+      display: grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: var(--soft);
+    }
+
+    .row-action.delete {
+      color: #d70015;
+    }
+
+    .empty {
+      padding: 34px 22px;
+      color: var(--muted);
+      font-size: 17px;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .fab {
+      position: fixed;
+      right: max(28px, calc((100vw - var(--shell-width)) / 2 + 28px));
+      bottom: max(28px, env(safe-area-inset-bottom));
+      display: grid;
+      place-items: center;
+      width: 70px;
+      height: 70px;
+      border-radius: 50%;
+      background: var(--ink);
+      color: #fff;
+      box-shadow: 0 4px 0 rgba(255, 255, 255, 0.5), 0 14px 35px rgba(0, 0, 0, 0.2);
+      z-index: 5;
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 48px 18px;
+      background: rgba(70, 70, 74, 0.36);
+      backdrop-filter: blur(18px);
+      z-index: 10;
+    }
+
+    .overlay.open {
+      display: flex;
+    }
+
+    .dialog {
+      width: min(100%, 420px);
+      max-height: calc(100vh - 96px);
+      overflow: auto;
+      padding: 22px 18px 18px;
+      border: 1px solid rgba(255, 255, 255, 0.55);
+      border-radius: 30px;
+      background: rgba(246, 246, 248, 0.84);
+      box-shadow: 0 18px 60px rgba(0, 0, 0, 0.24);
+    }
+
+    .dialog h1 {
+      margin: 0 8px 18px;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    .field {
+      width: 100%;
+      min-height: 54px;
+      margin-bottom: 12px;
+      border: 0;
+      border-radius: 27px;
+      background: rgba(255, 255, 255, 0.68);
+      color: var(--ink);
+      outline: none;
+      padding: 0 20px;
+      font-size: 18px;
+    }
+
+    .field::placeholder {
+      color: #b7b7bd;
+    }
+
+    .type-switch {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
+      padding: 5px;
+      border-radius: 27px;
+      background: rgba(255, 255, 255, 0.5);
+    }
+
+    .type-switch input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .type-switch label {
+      display: grid;
+      min-width: 0;
+    }
+
+    .type-option {
+      display: grid;
+      place-items: center;
+      min-height: 44px;
+      border-radius: 22px;
+      color: var(--muted);
+      font-weight: 850;
+      cursor: pointer;
+    }
+
+    .type-switch input:checked + .type-option {
+      background: var(--card);
+      color: var(--ink);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    }
+
+    .dialog-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .dialog-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 4px;
+    }
+
+    .dialog-button {
+      min-height: 54px;
+      border-radius: 27px;
+      font-size: 18px;
+      font-weight: 800;
+      background: rgba(255, 255, 255, 0.42);
+    }
+
+    .dialog-button.primary {
+      background: var(--blue);
+      color: #fff;
+    }
+
+    body.dark-mode .dialog {
+      background: rgba(28, 28, 30, 0.86);
+      border-color: rgba(255, 255, 255, 0.14);
+    }
+
+    body.dark-mode .field {
+      background: rgba(44, 44, 46, 0.84);
+      color: var(--ink);
+    }
+
+    body.dark-mode .type-switch {
+      background: rgba(44, 44, 46, 0.84);
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 22px;
+      transform: translateX(-50%) translateY(120%);
+      max-width: min(90vw, 420px);
+      padding: 12px 16px;
+      border-radius: 18px;
+      background: rgba(0, 0, 0, 0.84);
+      color: #fff;
+      font-weight: 700;
+      opacity: 0;
+      transition: 180ms ease;
+      z-index: 20;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .swal-ios-popup {
+      border-radius: 28px;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+    }
+
+    body.dark-mode .swal-ios-popup {
+      background: var(--card);
+      color: var(--ink);
+    }
+
+    body.dark-mode .swal2-input {
+      background: var(--soft);
+      border-color: var(--line);
+      color: var(--ink);
+    }
+
+    @media (max-width: 430px) {
+      .app {
+        padding-left: 28px;
+        padding-right: 28px;
+      }
+
+      .topbar {
+        padding-left: 0;
+        padding-right: 0;
+        margin-top: 22px;
+        margin-bottom: 58px;
+      }
+
+      .summary,
+      .chart-card,
+      .latest {
+        border-radius: 28px;
+      }
+
+      .section-title {
+        margin-left: 16px;
+        margin-right: 16px;
+      }
+
+      .pill {
+        font-size: 18px;
+        padding: 0 14px;
+      }
+
+      .tool-pill {
+        gap: 10px;
+        padding: 0 12px;
+      }
+
+      .icon-button {
+        width: 30px;
+        height: 30px;
+      }
+
+      .summary {
+        padding: 28px 22px 26px;
+      }
+
+      .chart-card {
+        margin-top: 22px;
+        padding: 28px 22px 26px;
+      }
+
+      .total {
+        font-size: 48px;
+      }
+
+      .pie-layout {
+        grid-template-columns: minmax(0, 1fr) minmax(130px, 0.92fr);
+        gap: 16px;
+        justify-items: stretch;
+      }
+
+      .pie-legend {
+        width: 100%;
+      }
+
+      .pie-chart {
+        width: min(190px, 100%);
+      }
+
+      .expense-row {
+        grid-template-columns: 54px minmax(0, 1fr) auto;
+        padding-left: 18px;
+        padding-right: 18px;
+      }
+    }
+
+    @media (max-width: 360px) {
+      .app {
+        padding-left: 18px;
+        padding-right: 18px;
+      }
+
+      .topbar {
+        padding-left: 0;
+        padding-right: 0;
+        gap: 8px;
+      }
+
+      .pill {
+        min-height: 44px;
+        border-radius: 22px;
+        font-size: 17px;
+        padding: 0 12px;
+      }
+
+      .pill svg {
+        width: 14px;
+      }
+
+      .tool-pill {
+        min-height: 44px;
+        gap: 6px;
+        padding: 0 10px;
+      }
+
+      .icon-button {
+        width: 28px;
+        height: 28px;
+      }
+
+      .icon-button svg {
+        width: 25px;
+        height: 25px;
+      }
+
+      .total {
+        font-size: 42px;
+      }
+
+      .summary,
+      .chart-card,
+      .latest {
+        border-radius: 24px;
+      }
+
+      .pie-chart {
+        width: min(150px, 100%);
+      }
+
+      .pie-layout {
+        grid-template-columns: 1fr;
+        justify-items: center;
+      }
+
+      .pie-legend {
+        width: 100%;
+      }
+
+      .expense-row {
+        grid-template-columns: 48px minmax(0, 1fr);
+      }
+
+      .category-icon {
+        width: 44px;
+        height: 44px;
+      }
+
+      .expense-amount {
+        text-align: left;
+        padding-top: 0;
+      }
+
+      .expense-side {
+        grid-column: 2;
+        justify-items: start;
+      }
+
+      .expense-row + .expense-row .expense-side {
+        border-top: 0;
+        padding-top: 0;
+      }
+
+      .fab {
+        width: 62px;
+        height: 62px;
+        right: 20px;
+      }
+
+      .dialog-grid,
+      .dialog-actions {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (min-width: 760px) {
+      :root {
+        --shell-width: 560px;
+      }
+
+      .app {
+        padding: 24px 32px 128px;
+      }
+
+      .topbar {
+        margin: 16px 0 44px;
+      }
+
+      .summary {
+        padding: 34px 30px 30px;
+      }
+
+      .chart-card {
+        margin-top: 18px;
+        padding: 30px;
+      }
+
+      .section-title {
+        margin: 34px 22px 14px;
+      }
+
+      .pie-chart {
+        width: 210px;
+      }
+
+      .total {
+        font-size: 64px;
+      }
+
+      .fab {
+        width: 76px;
+        height: 76px;
+        right: max(36px, calc((100vw - var(--shell-width)) / 2 + 36px));
+        bottom: 36px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <nav class="topbar" aria-label="Budget tracker controls">
+      <button class="pill" type="button" id="filterButton">
+        <span id="filterLabel">All</span>
+        <svg width="18" height="26" viewBox="0 0 18 26" fill="none"><path d="m2 8 7-6 7 6M16 18l-7 6-7-6" stroke="black" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="tool-pill">
+        <button class="icon-button" type="button" title="Search" aria-label="Search" id="searchButton">
+          <svg width="31" height="31" viewBox="0 0 31 31" fill="none"><circle cx="13.5" cy="13.5" r="10" stroke="black" stroke-width="4"/><path d="m21 21 8 8" stroke="black" stroke-width="4" stroke-linecap="round"/></svg>
+        </button>
+        <button class="icon-button" type="button" title="Filter" aria-label="Filter">
+          <svg width="32" height="27" viewBox="0 0 32 27" fill="none"><path d="M2 3h28M7 13.5h18M12 24h8" stroke="black" stroke-width="3.4" stroke-linecap="round"/></svg>
+        </button>
+        <button class="icon-button" type="button" title="Toggle dark mode" aria-label="Toggle dark mode" id="themeButton">
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="7" stroke="black" stroke-width="3.2"/><path d="M16 1v6M16 25v6M31 16h-6M7 16H1M26.6 5.4l-4.2 4.2M9.6 22.4l-4.2 4.2M26.6 26.6l-4.2-4.2M9.6 9.6 5.4 5.4" stroke="black" stroke-width="2.7" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+    </nav>
+
+    <section class="summary" aria-label="Expense summary">
+      <p class="eyebrow">Spent all time</p>
+      <h1 class="total" id="total">₱0.00</h1>
+      <div class="summary-stats" aria-label="Income and balance">
+        <div class="stat">
+          <span class="stat-label">Income</span>
+          <span class="stat-value" id="incomeTotal">₱0.00</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Balance</span>
+          <span class="stat-value" id="balanceTotal">₱0.00</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="chart-card" aria-label="Category pie chart">
+      <p class="eyebrow">By category</p>
+      <div class="pie-layout">
+        <div class="pie-chart" id="pieChart" aria-label="Category pie chart"></div>
+        <div class="pie-legend" id="pieLegend"></div>
+      </div>
+    </section>
+
+    <h2 class="section-title">Latest</h2>
+    <section class="latest" id="latest" aria-live="polite"></section>
+  </main>
+
+  <button class="fab" type="button" id="addButton" aria-label="Add expense">
+    <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><path d="M20 5v30M5 20h30" stroke="white" stroke-width="4" stroke-linecap="round"/></svg>
+  </button>
+
+  <div class="overlay" id="overlay" role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
+    <form class="dialog" id="expenseForm">
+      <h1 id="dialogTitle">What is the expense about?</h1>
+      <div class="type-switch" aria-label="Transaction type">
+        <label>
+          <input type="radio" name="type" value="expense" checked>
+          <span class="type-option">Expense</span>
+        </label>
+        <label>
+          <input type="radio" name="type" value="income">
+          <span class="type-option">Income</span>
+        </label>
+      </div>
+      <input class="field" id="titleInput" name="title" placeholder="Title" autocomplete="off" required>
+      <div class="dialog-grid">
+        <input class="field" id="amountInput" name="amount" type="number" min="0.01" step="0.01" placeholder="Amount" required>
+        <select class="field" id="categoryInput" name="category" aria-label="Category"></select>
+      </div>
+      <input class="field" id="dateInput" name="date" type="date" required>
+      <textarea class="field" id="noteInput" name="note" rows="2" placeholder="Note"></textarea>
+      <div class="dialog-actions">
+        <button class="dialog-button" type="button" id="cancelButton">Cancel</button>
+        <button class="dialog-button primary" type="submit">Done</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const fallbackData = {
+      total: 220,
+      incomeTotal: 1000,
+      balance: 780,
+      latest: [
+        { id: 'demo-1', type: 'expense', title: 'Ice candy', date: '2026-05-09', category: 'Food', amount: 20, note: '' },
+        { id: 'demo-2', type: 'expense', title: 'Lunch', date: '2026-05-09', category: 'Food', amount: 200, note: '' },
+        { id: 'demo-3', type: 'income', title: 'Allowance', date: '2026-05-08', category: 'Allowance', amount: 1000, note: '' }
+      ],
+      transactions: [
+        { id: 'demo-1', type: 'expense', title: 'Ice candy', date: '2026-05-09', category: 'Food', amount: 20, note: '' },
+        { id: 'demo-2', type: 'expense', title: 'Lunch', date: '2026-05-09', category: 'Food', amount: 200, note: '' },
+        { id: 'demo-3', type: 'income', title: 'Allowance', date: '2026-05-08', category: 'Allowance', amount: 1000, note: '' }
+      ],
+      categories: ['Food', 'Transport', 'Bills', 'Shopping', 'School', 'Health', 'Savings', 'Other'],
+      incomeCategories: ['Salary', 'Allowance', 'Freelance', 'Gift', 'Business', 'Savings', 'Other']
+    };
+
+    const state = {
+      data: fallbackData,
+      query: '',
+      filter: 'all',
+      editingId: null,
+      editingType: null
+    };
+
+    const hasAppsScript = typeof google !== 'undefined' && google.script && google.script.run;
+    const peso = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
+    const prettyDate = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+    const total = document.getElementById('total');
+    const incomeTotal = document.getElementById('incomeTotal');
+    const balanceTotal = document.getElementById('balanceTotal');
+    const filterLabel = document.getElementById('filterLabel');
+    const pieChart = document.getElementById('pieChart');
+    const pieLegend = document.getElementById('pieLegend');
+    const latest = document.getElementById('latest');
+    const overlay = document.getElementById('overlay');
+    const form = document.getElementById('expenseForm');
+    const categoryInput = document.getElementById('categoryInput');
+    const dateInput = document.getElementById('dateInput');
+    const titleInput = document.getElementById('titleInput');
+    const amountInput = document.getElementById('amountInput');
+    const noteInput = document.getElementById('noteInput');
+    const dialogTitle = document.getElementById('dialogTitle');
+    const typeInputs = [...document.querySelectorAll('input[name="type"]')];
+    const toast = document.getElementById('toast');
+
+    document.getElementById('addButton').addEventListener('click', openDialog);
+    document.getElementById('filterButton').addEventListener('click', chooseFilter);
+    document.getElementById('cancelButton').addEventListener('click', closeDialog);
+    document.getElementById('searchButton').addEventListener('click', searchExpenses);
+    document.getElementById('themeButton').addEventListener('click', toggleTheme);
+    overlay.addEventListener('click', event => {
+      if (event.target === overlay) closeDialog();
+    });
+    form.addEventListener('submit', submitExpense);
+    latest.addEventListener('click', handleLatestAction);
+    typeInputs.forEach(input => input.addEventListener('change', () => renderCategoriesForType(getSelectedType())));
+
+    boot();
+
+    function boot() {
+      applySavedTheme();
+      dateInput.valueAsDate = new Date();
+      render(fallbackData);
+
+      if (!hasAppsScript) return;
+      google.script.run
+        .withSuccessHandler(render)
+        .withFailureHandler(error => showToast(error.message || 'Could not load expenses.'))
+        .setupBudgetTracker();
+    }
+
+    function render(data) {
+      state.data = data || fallbackData;
+      state.data.transactions = state.data.transactions || state.data.latest || [];
+      renderCategoriesForType(getSelectedType());
+      renderFilterLabel();
+      renderSummary();
+      renderLatest();
+    }
+
+    function renderCategoriesForType(type) {
+      const categories = type === 'income'
+        ? state.data.incomeCategories || fallbackData.incomeCategories
+        : state.data.categories || fallbackData.categories;
+      categoryInput.innerHTML = categories
+        .map(category => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`)
+        .join('');
+    }
+
+    function renderSummary() {
+      const visible = getVisibleTransactions();
+      const expenses = visible.filter(item => item.type !== 'income');
+      const incomes = visible.filter(item => item.type === 'income');
+      const spentTotal = sumAmounts(expenses);
+      const incomeTotalValue = sumAmounts(incomes);
+      const categoryData = buildCategoryData(visible);
+
+      total.textContent = peso.format(spentTotal).replace('PHP', '₱');
+      incomeTotal.textContent = peso.format(incomeTotalValue).replace('PHP', '₱');
+      balanceTotal.textContent = peso.format(incomeTotalValue - spentTotal).replace('PHP', '₱');
+      renderPie(categoryData);
+    }
+
+    function renderLatest() {
+      const query = state.query.toLowerCase();
+      const expenses = getVisibleTransactions().filter(expense => {
+        return !query || [expense.title, expense.category, expense.note, expense.type].join(' ').toLowerCase().includes(query);
+      });
+
+      if (!expenses.length) {
+        latest.innerHTML = `<div class="empty">No ${state.filter === 'all' ? 'transactions' : state.filter} yet</div>`;
+        return;
+      }
+
+      latest.innerHTML = expenses.map(expense => `
+        <article class="expense-row ${expense.type === 'income' ? 'income' : 'expense'}">
+          <div class="category-icon">${iconFor(expense.category)}</div>
+          <div class="expense-main">
+            <div class="expense-title">${escapeHtml(expense.title)}</div>
+            <div class="expense-date">${formatDate(expense.date)} · ${expense.type === 'income' ? 'Income' : 'Expense'}</div>
+          </div>
+          <div class="expense-side">
+            <div class="expense-amount">${expense.type === 'income' ? '+' : ''}${peso.format(expense.amount).replace('PHP', '₱')}</div>
+            <div class="row-actions" aria-label="Expense actions">
+              <button class="row-action edit" type="button" data-action="edit" data-id="${escapeHtml(expense.id)}" title="Edit ${escapeHtml(expense.title)}" aria-label="Edit ${escapeHtml(expense.title)}">
+                <svg width="16" height="16" viewBox="0 0 18 18" fill="none"><path d="M2 13.7V16h2.3L14.9 5.4l-2.3-2.3L2 13.7Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="m11.7 4 2.3 2.3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              </button>
+              <button class="row-action delete" type="button" data-action="delete" data-id="${escapeHtml(expense.id)}" title="Delete ${escapeHtml(expense.title)}" aria-label="Delete ${escapeHtml(expense.title)}">
+                <svg width="16" height="16" viewBox="0 0 18 18" fill="none"><path d="M3 5h12M7 5V3h4v2M6 7v8M12 7v8M4.5 5l.8 11h7.4l.8-11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+            </div>
+          </div>
+        </article>
+      `).join('');
+    }
+
+    function openDialog() {
+      state.editingId = null;
+      state.editingType = null;
+      dialogTitle.textContent = 'What is the expense about?';
+      form.reset();
+      setSelectedType('expense');
+      renderCategoriesForType('expense');
+      dateInput.valueAsDate = new Date();
+      overlay.classList.add('open');
+      setTimeout(() => titleInput.focus(), 50);
+    }
+
+    function openEditDialog(expense) {
+      state.editingId = expense.id;
+      state.editingType = expense.type || 'expense';
+      dialogTitle.textContent = expense.type === 'income' ? 'Edit this income' : 'Edit this expense';
+      setSelectedType(expense.type || 'expense');
+      renderCategoriesForType(expense.type || 'expense');
+      titleInput.value = expense.title || '';
+      amountInput.value = expense.amount || '';
+      categoryInput.value = expense.category || 'Other';
+      dateInput.value = expense.date || new Date().toISOString().slice(0, 10);
+      noteInput.value = expense.note || '';
+      overlay.classList.add('open');
+      setTimeout(() => titleInput.focus(), 50);
+    }
+
+    function closeDialog() {
+      overlay.classList.remove('open');
+      state.editingId = null;
+      state.editingType = null;
+    }
+
+    function submitExpense(event) {
+      event.preventDefault();
+      const expense = Object.fromEntries(new FormData(form).entries());
+      expense.type = expense.type || getSelectedType();
+      expense.amount = Number(expense.amount);
+      const isEditing = Boolean(state.editingId);
+      if (isEditing) {
+        expense.id = state.editingId;
+        expense.type = state.editingType || expense.type;
+      }
+
+      if (!hasAppsScript) {
+        const next = isEditing
+          ? replaceLocalTransaction(expense)
+          : addLocalTransaction(expense);
+        render(next);
+        closeDialog();
+        showSuccess(getActionLabel(expense.type, isEditing ? 'updated' : 'saved'), 'Preview mode only.');
+        return;
+      }
+
+      showBusy(`${isEditing ? 'Updating' : 'Saving'} ${expense.type}...`);
+      const onSuccess = data => {
+          render(data);
+          closeDialog();
+          showSuccess(getActionLabel(expense.type, isEditing ? 'updated' : 'saved'));
+        };
+      const onFailure = error => showError(error.message || `Could not save ${expense.type}.`);
+
+      if (isEditing) {
+        const runner = google.script.run.withSuccessHandler(onSuccess).withFailureHandler(onFailure);
+        if (expense.type === 'income') {
+          runner.updateIncome(expense);
+        } else {
+          runner.updateExpense(expense);
+        }
+        return;
+      }
+
+      const runner = google.script.run.withSuccessHandler(onSuccess).withFailureHandler(onFailure);
+      if (expense.type === 'income') {
+        runner.addIncome(expense);
+      } else {
+        runner.addExpense(expense);
+      }
+    }
+
+    async function handleLatestAction(event) {
+      const button = event.target.closest('[data-action]');
+      if (!button) return;
+
+      const expense = findExpense(button.dataset.id);
+      if (!expense) {
+        showToast('Expense was not found.');
+        return;
+      }
+
+      if (button.dataset.action === 'edit') {
+        openEditDialog(expense);
+        return;
+      }
+
+      const confirmed = await confirmDelete(expense);
+      if (!confirmed) return;
+      deleteExpenseById(expense);
+    }
+
+    function deleteExpenseById(expense) {
+      if (!hasAppsScript) {
+        render(deleteLocalTransaction(expense.id));
+        showSuccess(getActionLabel(expense.type, 'deleted'), 'Preview mode only.');
+        return;
+      }
+
+      showBusy(`Deleting ${expense.type}...`);
+      const runner = google.script.run
+        .withSuccessHandler(data => {
+          render(data);
+          showSuccess(getActionLabel(expense.type, 'deleted'));
+        })
+        .withFailureHandler(error => showError(error.message || `Could not delete ${expense.type}.`));
+
+      if (expense.type === 'income') {
+        runner.deleteIncome(expense.id);
+      } else {
+        runner.deleteExpense(expense.id);
+      }
+    }
+
+    function findExpense(id) {
+      return (state.data.transactions || state.data.latest || []).find(expense => expense.id === id);
+    }
+
+    function addLocalTransaction(expense) {
+      return rebuildLocalData([{ id: Date.now().toString(), ...expense }, ...(state.data.transactions || state.data.latest || [])]);
+    }
+
+    function replaceLocalTransaction(expense) {
+      return rebuildLocalData((state.data.transactions || state.data.latest || []).map(item => item.id === expense.id ? { ...item, ...expense } : item));
+    }
+
+    function deleteLocalTransaction(id) {
+      return rebuildLocalData((state.data.transactions || state.data.latest || []).filter(item => item.id !== id));
+    }
+
+    function rebuildLocalData(transactions) {
+      const expenses = transactions.filter(item => item.type !== 'income');
+      const incomes = transactions.filter(item => item.type === 'income');
+      const total = expenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
+      const incomeTotalValue = incomes.reduce((sum, income) => sum + Number(income.amount || 0), 0);
+
+      return {
+        ...state.data,
+        total,
+        incomeTotal: incomeTotalValue,
+        balance: incomeTotalValue - total,
+        transactions,
+        latest: transactions,
+      };
+    }
+
+    function getVisibleTransactions() {
+      const transactions = state.data.transactions || state.data.latest || [];
+      if (state.filter === 'expense') {
+        return transactions.filter(item => item.type !== 'income');
+      }
+      if (state.filter === 'income') {
+        return transactions.filter(item => item.type === 'income');
+      }
+      return transactions;
+    }
+
+    function sumAmounts(items) {
+      return items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    }
+
+    function buildCategoryData(transactions) {
+      const totals = {};
+      transactions.forEach(item => {
+        const category = item.category || 'Other';
+        totals[category] = (totals[category] || 0) + Number(item.amount || 0);
+      });
+
+      return Object.entries(totals)
+        .map(([category, amount]) => ({ category, amount }))
+        .sort((a, b) => b.amount - a.amount);
+    }
+
+    function renderPie(items) {
+      const colors = ['#0a84ff', '#32d76e', '#ff9f0a', '#ff375f', '#af52de', '#64d2ff', '#ffd60a', '#8e8e93'];
+      const totalAmount = sumAmounts(items);
+
+      if (!items.length || !totalAmount) {
+        pieChart.style.background = 'var(--soft)';
+        pieChart.innerHTML = '<span class="pie-empty">No data</span>';
+        pieLegend.innerHTML = '<div class="empty">No category data yet</div>';
+        return;
+      }
+
+      let cursor = 0;
+      const segments = items.map((item, index) => {
+        const start = cursor;
+        const size = (item.amount / totalAmount) * 100;
+        cursor += size;
+        return `${colors[index % colors.length]} ${start}% ${cursor}%`;
+      });
+
+      pieChart.innerHTML = '';
+      pieChart.style.background = `conic-gradient(${segments.join(', ')})`;
+      pieLegend.innerHTML = items.map((item, index) => {
+        const percent = Math.round((item.amount / totalAmount) * 100);
+        return `
+          <div class="legend-row">
+            <span class="legend-swatch" style="--swatch:${colors[index % colors.length]}"></span>
+            <span class="legend-name">${escapeHtml(item.category)}</span>
+            <span>${percent}% · ${peso.format(item.amount).replace('PHP', '₱')}</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function getSelectedType() {
+      return document.querySelector('input[name="type"]:checked')?.value || 'expense';
+    }
+
+    function setSelectedType(type) {
+      typeInputs.forEach(input => {
+        input.checked = input.value === type;
+      });
+    }
+
+    function getActionLabel(type, action) {
+      const noun = type === 'income' ? 'Income' : 'Expense';
+      return `${noun} ${action}`;
+    }
+
+    async function chooseFilter() {
+      if (!hasSwal()) {
+        const value = prompt('Show all, expenses, or income?', state.filter);
+        if (!value) return;
+        applyFilter(value);
+        return;
+      }
+
+      const result = await Swal.fire({
+        title: 'Show transactions',
+        input: 'select',
+        inputValue: state.filter,
+        inputOptions: {
+          all: 'All',
+          expense: 'Expenses',
+          income: 'Income'
+        },
+        showCancelButton: true,
+        confirmButtonText: 'Apply',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#0a84ff',
+        cancelButtonColor: '#8c8c93',
+        customClass: {
+          popup: 'swal-ios-popup'
+        }
+      });
+
+      if (!result.isConfirmed) return;
+      applyFilter(result.value);
+      showSuccess(`Showing ${getFilterLabel(state.filter)}`);
+    }
+
+    function applyFilter(filter) {
+      const normalized = String(filter || '').toLowerCase();
+      state.filter = ['all', 'expense', 'expenses', 'income'].includes(normalized)
+        ? normalized.replace('expenses', 'expense')
+        : 'all';
+      renderFilterLabel();
+      renderSummary();
+      renderLatest();
+    }
+
+    function renderFilterLabel() {
+      filterLabel.textContent = getFilterLabel(state.filter);
+    }
+
+    function getFilterLabel(filter) {
+      if (filter === 'expense') return 'Expenses';
+      if (filter === 'income') return 'Income';
+      return 'All';
+    }
+
+    async function searchExpenses() {
+      if (!hasSwal()) {
+        const query = prompt('Search expenses', state.query);
+        if (query === null) return;
+        applySearch(query);
+        return;
+      }
+
+      const result = await Swal.fire({
+        title: 'Search expenses',
+        input: 'text',
+        inputValue: state.query,
+        inputPlaceholder: 'Title, category, or note',
+        showCancelButton: true,
+        showDenyButton: Boolean(state.query),
+        confirmButtonText: 'Search',
+        denyButtonText: 'Clear',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#0a84ff',
+        denyButtonColor: '#8c8c93',
+        cancelButtonColor: '#8c8c93',
+        customClass: {
+          popup: 'swal-ios-popup'
+        }
+      });
+
+      if (result.isDenied) {
+        applySearch('');
+        showSuccess('Search cleared');
+        return;
+      }
+
+      if (!result.isConfirmed) return;
+      applySearch(result.value || '');
+      showSuccess(state.query ? 'Search applied' : 'Search cleared');
+    }
+
+    function applySearch(query) {
+      state.query = String(query || '').trim();
+      renderLatest();
+    }
+
+    function applySavedTheme() {
+      const savedTheme = getStoredTheme();
+      const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const useDark = savedTheme ? savedTheme === 'dark' : prefersDark;
+      document.body.classList.toggle('dark-mode', useDark);
+    }
+
+    function toggleTheme() {
+      const useDark = !document.body.classList.contains('dark-mode');
+      document.body.classList.toggle('dark-mode', useDark);
+      setStoredTheme(useDark ? 'dark' : 'light');
+      showSuccess(useDark ? 'Dark mode on' : 'Light mode on');
+    }
+
+    function getStoredTheme() {
+      try {
+        return localStorage.getItem('budgetTrackerTheme');
+      } catch (error) {
+        return '';
+      }
+    }
+
+    function setStoredTheme(theme) {
+      try {
+        localStorage.setItem('budgetTrackerTheme', theme);
+      } catch (error) {
+      }
+    }
+
+    function formatDate(value) {
+      const date = value ? new Date(`${value}T00:00:00`) : new Date();
+      return prettyDate.format(date);
+    }
+
+    function iconFor(category) {
+      const key = String(category || '').toLowerCase();
+      if (key.includes('salary') || key.includes('allowance') || key.includes('freelance') || key.includes('gift') || key.includes('business')) return '<span>+</span>';
+      if (key.includes('food')) return '<svg width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M8 2v24M4 2v8a4 4 0 0 0 8 0V2M20 2v24M17 2v11h6V2" stroke="black" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      if (key.includes('transport')) return '<svg width="30" height="24" viewBox="0 0 30 24" fill="none"><path d="M5 18h20l-2-10H7L5 18Z" stroke="black" stroke-width="3" stroke-linejoin="round"/><path d="M8 18v3M22 18v3M9 12h12" stroke="black" stroke-width="3" stroke-linecap="round"/></svg>';
+      if (key.includes('bill')) return '<svg width="24" height="28" viewBox="0 0 24 28" fill="none"><path d="M4 2h16v24l-4-2-4 2-4-2-4 2V2Z" stroke="black" stroke-width="3" stroke-linejoin="round"/><path d="M8 10h8M8 16h6" stroke="black" stroke-width="3" stroke-linecap="round"/></svg>';
+      return '<span>₱</span>';
+    }
+
+    function hasSwal() {
+      return typeof Swal !== 'undefined' && Swal.fire;
+    }
+
+    function showBusy(title) {
+      if (!hasSwal()) {
+        showToast(title);
+        return;
+      }
+
+      Swal.fire({
+        title,
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        didOpen: () => Swal.showLoading()
+      });
+    }
+
+    function showSuccess(title, text = '') {
+      if (!hasSwal()) {
+        showToast(text ? `${title}. ${text}` : `${title}.`);
+        return;
+      }
+
+      Swal.fire({
+        icon: 'success',
+        title,
+        text,
+        timer: 1500,
+        showConfirmButton: false,
+        customClass: {
+          popup: 'swal-ios-popup'
+        }
+      });
+    }
+
+    function showError(message) {
+      if (!hasSwal()) {
+        showToast(message);
+        return;
+      }
+
+      Swal.fire({
+        icon: 'error',
+        title: 'Something went wrong',
+        text: message,
+        confirmButtonText: 'OK',
+        confirmButtonColor: '#0a84ff',
+        customClass: {
+          popup: 'swal-ios-popup'
+        }
+      });
+    }
+
+    async function confirmDelete(expense) {
+      if (!hasSwal()) {
+        return confirm(`Delete "${expense.title}"?`);
+      }
+
+      const result = await Swal.fire({
+        icon: 'warning',
+        title: `Delete ${expense.type === 'income' ? 'income' : 'expense'}?`,
+        text: expense.title,
+        showCancelButton: true,
+        confirmButtonText: 'Delete',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#d70015',
+        cancelButtonColor: '#8c8c93',
+        reverseButtons: true,
+        customClass: {
+          popup: 'swal-ios-popup'
+        }
+      });
+      return result.isConfirmed;
+    }
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2200);
+    }
+
+    function escapeHtml(value) {
+      return String(value || '').replace(/[&<>"']/g, character => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[character]));
+    }
+  </script>
+</body>
+</html>
