@@ -328,11 +328,11 @@
     }
 
     .expense-row.debt .expense-amount {
-      color: #af52de;
+      color: #007aff;
     }
 
     body.dark-mode .expense-row.debt .expense-amount {
-      color: #d4a5ff;
+      color: #409fff;
     }
 
     .status-badge {
@@ -409,6 +409,99 @@
       box-shadow: 0 4px 0 rgba(255, 255, 255, 0.5), 0 14px 35px rgba(0, 0, 0, 0.2);
       z-index: 5;
     }
+
+    body.dark-mode .fab {
+      background: var(--blue);
+    }
+
+    .calendar-view {
+      padding: 22px;
+      border-radius: 28px;
+      background: var(--card);
+    }
+
+    .calendar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 22px;
+    }
+
+    .calendar-title {
+      font-size: 20px;
+      font-weight: 800;
+    }
+
+    .calendar-nav {
+      display: flex;
+      gap: 12px;
+    }
+
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 2px;
+      background: var(--line);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .calendar-day-label {
+      background: var(--soft);
+      padding: 8px 0;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--muted);
+    }
+
+    .calendar-day {
+      background: var(--card);
+      min-height: 64px;
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .calendar-day.off {
+      background: var(--bg);
+      opacity: 0.4;
+    }
+
+    .calendar-date-num {
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .calendar-day.today .calendar-date-num {
+      background: var(--blue);
+      color: #fff;
+      width: 24px;
+      height: 24px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+    }
+
+    .dots {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 3px;
+      justify-content: center;
+    }
+
+    .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+
+    .dot.expense { background: #ff3b30; }
+    .dot.income { background: #34c759; }
+    .dot.debt { background: #007aff; }
 
     .overlay {
       position: fixed;
@@ -800,8 +893,8 @@
         <button class="icon-button" type="button" title="Search" aria-label="Search" id="searchButton">
           <svg width="31" height="31" viewBox="0 0 31 31" fill="none"><circle cx="13.5" cy="13.5" r="10" stroke="black" stroke-width="4"/><path d="m21 21 8 8" stroke="black" stroke-width="4" stroke-linecap="round"/></svg>
         </button>
-        <button class="icon-button" type="button" title="Filter" aria-label="Filter">
-          <svg width="32" height="27" viewBox="0 0 32 27" fill="none"><path d="M2 3h28M7 13.5h18M12 24h8" stroke="black" stroke-width="3.4" stroke-linecap="round"/></svg>
+        <button class="icon-button" type="button" title="Toggle View" aria-label="Toggle View" id="viewToggleButton">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
         </button>
         <button class="icon-button" type="button" title="Toggle dark mode" aria-label="Toggle dark mode" id="themeButton">
           <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="7" stroke="black" stroke-width="3.2"/><path d="M16 1v6M16 25v6M31 16h-6M7 16H1M26.6 5.4l-4.2 4.2M9.6 22.4l-4.2 4.2M26.6 26.6l-4.2-4.2M9.6 9.6 5.4 5.4" stroke="black" stroke-width="2.7" stroke-linecap="round"/></svg>
@@ -842,8 +935,9 @@
       </div>
     </section>
 
-    <h2 class="section-title">Latest</h2>
+    <h2 class="section-title" id="viewTitle">Latest</h2>
     <section class="latest" id="latest" aria-live="polite"></section>
+    <section id="calendar" class="calendar-view" style="display:none" aria-live="polite"></section>
   </main>
 
   <button class="fab" type="button" id="addButton" aria-label="Add expense">
@@ -912,7 +1006,9 @@
       query: '',
       filter: 'all',
       editingId: null,
-      editingType: null
+      editingType: null,
+      view: 'latest',
+      calendarDate: new Date()
     };
 
     const hasAppsScript = typeof google !== 'undefined' && google.script && google.script.run;
@@ -928,6 +1024,8 @@
     const pieChart = document.getElementById('pieChart');
     const pieLegend = document.getElementById('pieLegend');
     const latest = document.getElementById('latest');
+    const calendarSection = document.getElementById('calendar');
+    const viewTitle = document.getElementById('viewTitle');
     const overlay = document.getElementById('overlay');
     const form = document.getElementById('expenseForm');
     const categoryInput = document.getElementById('categoryInput');
@@ -943,6 +1041,7 @@
     document.getElementById('filterButton').addEventListener('click', chooseFilter);
     document.getElementById('cancelButton').addEventListener('click', closeDialog);
     document.getElementById('searchButton').addEventListener('click', searchExpenses);
+    document.getElementById('viewToggleButton').addEventListener('click', toggleView);
     document.getElementById('themeButton').addEventListener('click', toggleTheme);
     overlay.addEventListener('click', event => {
       if (event.target === overlay) closeDialog();
@@ -971,7 +1070,11 @@
       renderCategoriesForType(getSelectedType());
       renderFilterLabel();
       renderSummary();
-      renderLatest();
+      if (state.view === 'calendar') {
+        renderCalendar();
+      } else {
+        renderLatest();
+      }
     }
 
     function renderCategoriesForType(type) {
@@ -1009,6 +1112,81 @@
 
       renderPie(categoryData);
     }
+
+    function toggleView() {
+      state.view = state.view === 'latest' ? 'calendar' : 'latest';
+      const isCalendar = state.view === 'calendar';
+      latest.style.display = isCalendar ? 'none' : 'block';
+      calendarSection.style.display = isCalendar ? 'block' : 'none';
+      viewTitle.textContent = isCalendar ? 'Calendar' : 'Latest';
+      render(state.data);
+    }
+
+    function renderCalendar() {
+      const date = state.calendarDate;
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      const firstDay = new Date(year, month, 1).getDay();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const monthName = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(date);
+
+      const transactionsByDate = {};
+      getVisibleTransactions().forEach(tx => {
+        const d = tx.date; // yyyy-mm-dd
+        if (!transactionsByDate[d]) transactionsByDate[d] = [];
+        transactionsByDate[d].push(tx);
+      });
+
+      let html = `
+        <div class="calendar-header">
+          <div class="calendar-title">${monthName}</div>
+          <div class="calendar-nav">
+            <button class="icon-button" onclick="changeMonth(-1)">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            </button>
+            <button class="icon-button" onclick="changeMonth(1)">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
+          </div>
+        </div>
+        <div class="calendar-grid">
+          ${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => `<div class="calendar-day-label">${day}</div>`).join('')}
+      `;
+
+      const prevMonthLastDay = new Date(year, month, 0).getDate();
+      for (let i = firstDay - 1; i >= 0; i--) {
+        html += `<div class="calendar-day off"><div class="calendar-date-num">${prevMonthLastDay - i}</div></div>`;
+      }
+
+      const todayStr = new Date().toISOString().split('T')[0];
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const txs = transactionsByDate[dateStr] || [];
+        const isToday = dateStr === todayStr;
+
+        html += `
+          <div class="calendar-day ${isToday ? 'today' : ''}">
+            <div class="calendar-date-num">${day}</div>
+            <div class="dots">
+              ${txs.map(tx => `<div class="dot ${tx.type}" title="${escapeHtml(tx.title)}: ${peso.format(tx.amount)}"></div>`).join('')}
+            </div>
+          </div>
+        `;
+      }
+
+      const remainingSlots = 42 - (firstDay + daysInMonth);
+      for (let day = 1; day <= remainingSlots; day++) {
+        html += `<div class="calendar-day off"><div class="calendar-date-num">${day}</div></div>`;
+      }
+
+      html += '</div>';
+      calendarSection.innerHTML = html;
+    }
+
+    window.changeMonth = function(offset) {
+      state.calendarDate.setMonth(state.calendarDate.getMonth() + offset);
+      renderCalendar();
+    };
 
     function renderLatest() {
       const query = state.query.toLowerCase();
