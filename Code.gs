@@ -1,10 +1,13 @@
 const EXPENSE_SHEET_NAME = 'Expenses';
 const INCOME_SHEET_NAME = 'Income';
+const DEBT_SHEET_NAME = 'Debts';
 const HEADERS = ['ID', 'Date', 'Title', 'Category', 'Amount', 'Note', 'Created At'];
+const DEBT_HEADERS = ['ID', 'Date', 'Title', 'Category', 'Amount', 'Note', 'Status', 'Created At'];
 
 function doGet() {
   ensureSheet_(EXPENSE_SHEET_NAME);
   ensureSheet_(INCOME_SHEET_NAME);
+  ensureSheet_(DEBT_SHEET_NAME, DEBT_HEADERS);
   return HtmlService
     .createHtmlOutputFromFile('Index')
     .setTitle('Budget Tracker')
@@ -14,6 +17,7 @@ function doGet() {
 function setupBudgetTracker() {
   const expenseSheet = ensureSheet_(EXPENSE_SHEET_NAME);
   const incomeSheet = ensureSheet_(INCOME_SHEET_NAME);
+  ensureSheet_(DEBT_SHEET_NAME, DEBT_HEADERS);
   const now = new Date();
 
   if (expenseSheet.getLastRow() === 1) {
@@ -31,20 +35,33 @@ function setupBudgetTracker() {
 function getDashboardData() {
   const expenses = readTransactions_(EXPENSE_SHEET_NAME, 'expense');
   const incomes = readTransactions_(INCOME_SHEET_NAME, 'income');
+  const debts = readTransactions_(DEBT_SHEET_NAME, 'debt');
+
   const total = expenses.reduce((sum, expense) => sum + expense.amount, 0);
   const incomeTotal = incomes.reduce((sum, income) => sum + income.amount, 0);
 
-  const transactions = expenses.concat(incomes)
+  const totalBorrowed = debts
+    .filter(d => d.category === 'Borrowed' && d.status === 'Open')
+    .reduce((sum, d) => sum + d.amount, 0);
+
+  const totalLent = debts
+    .filter(d => d.category === 'Lent' && d.status === 'Open')
+    .reduce((sum, d) => sum + d.amount, 0);
+
+  const transactions = expenses.concat(incomes).concat(debts)
     .sort((a, b) => new Date(b.date) - new Date(a.date));
 
   return {
     total,
     incomeTotal,
+    totalBorrowed,
+    totalLent,
     balance: incomeTotal - total,
     transactions,
     latest: transactions,
     categories: getCategories_(),
-    incomeCategories: getIncomeCategories_()
+    incomeCategories: getIncomeCategories_(),
+    debtCategories: getDebtCategories_()
   };
 }
 
@@ -78,17 +95,53 @@ function deleteIncome(id) {
   return getDashboardData();
 }
 
+function addDebt(debt) {
+  appendTransaction_(DEBT_SHEET_NAME, normalizeTransaction_(debt, 'Debt'));
+  return getDashboardData();
+}
+
+function updateDebt(debt) {
+  updateTransaction_(DEBT_SHEET_NAME, debt, 'Debt');
+  return getDashboardData();
+}
+
+function deleteDebt(id) {
+  deleteTransaction_(DEBT_SHEET_NAME, id);
+  return getDashboardData();
+}
+
+function toggleDebtStatus(id) {
+  const sheet = ensureSheet_(DEBT_SHEET_NAME, DEBT_HEADERS);
+  const rowNumber = findTransactionRow_(sheet, id);
+  if (!rowNumber) {
+    throw new Error('Debt was not found.');
+  }
+
+  const currentStatus = sheet.getRange(rowNumber, 7).getValue();
+  const newStatus = currentStatus === 'Paid' ? 'Open' : 'Paid';
+  sheet.getRange(rowNumber, 7).setValue(newStatus);
+
+  return getDashboardData();
+}
+
 function appendTransaction_(sheetName, transaction) {
-  const sheet = ensureSheet_(sheetName);
-  sheet.appendRow([
+  const isDebt = sheetName === DEBT_SHEET_NAME;
+  const sheet = isDebt ? ensureSheet_(sheetName, DEBT_HEADERS) : ensureSheet_(sheetName);
+  const row = [
     Utilities.getUuid(),
     transaction.date,
     transaction.title,
     transaction.category,
     transaction.amount,
-    transaction.note,
-    new Date()
-  ]);
+    transaction.note
+  ];
+
+  if (isDebt) {
+    row.push(transaction.status || 'Open');
+  }
+
+  row.push(new Date());
+  sheet.appendRow(row);
 }
 
 function updateTransaction_(sheetName, transaction, label) {
@@ -98,19 +151,27 @@ function updateTransaction_(sheetName, transaction, label) {
   }
 
   const normalized = normalizeTransaction_(transaction, label);
-  const sheet = ensureSheet_(sheetName);
+  const isDebt = sheetName === DEBT_SHEET_NAME;
+  const sheet = isDebt ? ensureSheet_(sheetName, DEBT_HEADERS) : ensureSheet_(sheetName);
   const rowNumber = findTransactionRow_(sheet, id);
   if (!rowNumber) {
     throw new Error(label + ' was not found.');
   }
 
-  sheet.getRange(rowNumber, 2, 1, 5).setValues([[
+  const values = [
     normalized.date,
     normalized.title,
     normalized.category,
     normalized.amount,
     normalized.note
-  ]]);
+  ];
+
+  if (isDebt) {
+    values.push(normalized.status || 'Open');
+    sheet.getRange(rowNumber, 2, 1, 6).setValues([values]);
+  } else {
+    sheet.getRange(rowNumber, 2, 1, 5).setValues([values]);
+  }
 }
 
 function deleteTransaction_(sheetName, id) {
@@ -136,23 +197,35 @@ function normalizeTransaction_(transaction, label) {
     amount,
     date: transaction.date ? new Date(transaction.date) : new Date(),
     category: String(transaction.category || 'Other').trim(),
-    note: String(transaction.note || '').trim()
+    note: String(transaction.note || '').trim(),
+    status: String(transaction.status || 'Open').trim()
   };
 }
 
 function readTransactions_(sheetName, type) {
-  const sheet = ensureSheet_(sheetName);
+  const isDebt = sheetName === DEBT_SHEET_NAME;
+  const sheet = isDebt ? ensureSheet_(sheetName, DEBT_HEADERS) : ensureSheet_(sheetName);
   const values = sheet.getDataRange().getValues();
-  return values.slice(1).filter(row => row[0]).map(row => ({
-    id: row[0],
-    type,
-    date: normalizeDate_(row[1]),
-    title: row[2],
-    category: row[3] || 'Other',
-    amount: Number(row[4]) || 0,
-    note: row[5] || '',
-    createdAt: normalizeDate_(row[6])
-  }));
+  return values.slice(1).filter(row => row[0]).map(row => {
+    const transaction = {
+      id: row[0],
+      type,
+      date: normalizeDate_(row[1]),
+      title: row[2],
+      category: row[3] || 'Other',
+      amount: Number(row[4]) || 0,
+      note: row[5] || ''
+    };
+
+    if (isDebt) {
+      transaction.status = row[6] || 'Open';
+      transaction.createdAt = normalizeDate_(row[7]);
+    } else {
+      transaction.createdAt = normalizeDate_(row[6]);
+    }
+
+    return transaction;
+  });
 }
 
 function findTransactionRow_(sheet, id) {
@@ -165,21 +238,21 @@ function findTransactionRow_(sheet, id) {
   return 0;
 }
 
-function ensureSheet_(sheetName) {
+function ensureSheet_(sheetName, headers = HEADERS) {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = spreadsheet.getSheetByName(sheetName);
   if (!sheet) {
     sheet = spreadsheet.insertSheet(sheetName);
   }
 
-  const existingHeaders = sheet.getRange(1, 1, 1, HEADERS.length).getValues()[0];
-  const hasHeaders = HEADERS.every((header, index) => existingHeaders[index] === header);
+  const existingHeaders = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
+  const hasHeaders = headers.every((header, index) => existingHeaders[index] === header);
   if (!hasHeaders) {
     sheet.clear();
-    sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     sheet.setFrozenRows(1);
-    sheet.getRange('A1:G1').setFontWeight('bold');
-    sheet.autoResizeColumns(1, HEADERS.length);
+    sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
+    sheet.autoResizeColumns(1, headers.length);
   }
   return sheet;
 }
@@ -190,6 +263,10 @@ function getCategories_() {
 
 function getIncomeCategories_() {
   return ['Salary', 'Allowance', 'Freelance', 'Gift', 'Business', 'Savings', 'Other'];
+}
+
+function getDebtCategories_() {
+  return ['Borrowed', 'Lent'];
 }
 
 function normalizeDate_(value) {

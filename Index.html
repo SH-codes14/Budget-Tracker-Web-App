@@ -327,6 +327,41 @@
       color: #32d76e;
     }
 
+    .expense-row.debt .expense-amount {
+      color: #af52de;
+    }
+
+    body.dark-mode .expense-row.debt .expense-amount {
+      color: #d4a5ff;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      margin-left: 6px;
+    }
+
+    .status-badge.open {
+      background: #ff3b3022;
+      color: #ff3b30;
+    }
+
+    .status-badge.paid {
+      background: #34c75922;
+      color: #34c759;
+    }
+
+    .debt-totals {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
     .expense-side {
       display: grid;
       gap: 8px;
@@ -787,6 +822,16 @@
           <span class="stat-value" id="balanceTotal">₱0.00</span>
         </div>
       </div>
+      <div class="debt-totals" aria-label="Debt summary">
+        <div class="stat">
+          <span class="stat-label">I Owe</span>
+          <span class="stat-value" id="totalBorrowed" style="color: #ff3b30;">₱0.00</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Owed to Me</span>
+          <span class="stat-value" id="totalLent" style="color: #34c759;">₱0.00</span>
+        </div>
+      </div>
     </section>
 
     <section class="chart-card" aria-label="Category pie chart">
@@ -817,6 +862,10 @@
           <input type="radio" name="type" value="income">
           <span class="type-option">Income</span>
         </label>
+        <label>
+          <input type="radio" name="type" value="debt">
+          <span class="type-option">Debt</span>
+        </label>
       </div>
       <input class="field" id="titleInput" name="title" placeholder="Title" autocomplete="off" required>
       <div class="dialog-grid">
@@ -838,19 +887,24 @@
     const fallbackData = {
       total: 220,
       incomeTotal: 1000,
+      totalBorrowed: 500,
+      totalLent: 200,
       balance: 780,
       latest: [
         { id: 'demo-1', type: 'expense', title: 'Ice candy', date: '2026-05-09', category: 'Food', amount: 20, note: '' },
         { id: 'demo-2', type: 'expense', title: 'Lunch', date: '2026-05-09', category: 'Food', amount: 200, note: '' },
-        { id: 'demo-3', type: 'income', title: 'Allowance', date: '2026-05-08', category: 'Allowance', amount: 1000, note: '' }
+        { id: 'demo-3', type: 'income', title: 'Allowance', date: '2026-05-08', category: 'Allowance', amount: 1000, note: '' },
+        { id: 'demo-4', type: 'debt', title: 'Friend A', date: '2026-05-10', category: 'Borrowed', amount: 500, note: '', status: 'Open' }
       ],
       transactions: [
         { id: 'demo-1', type: 'expense', title: 'Ice candy', date: '2026-05-09', category: 'Food', amount: 20, note: '' },
         { id: 'demo-2', type: 'expense', title: 'Lunch', date: '2026-05-09', category: 'Food', amount: 200, note: '' },
-        { id: 'demo-3', type: 'income', title: 'Allowance', date: '2026-05-08', category: 'Allowance', amount: 1000, note: '' }
+        { id: 'demo-3', type: 'income', title: 'Allowance', date: '2026-05-08', category: 'Allowance', amount: 1000, note: '' },
+        { id: 'demo-4', type: 'debt', title: 'Friend A', date: '2026-05-10', category: 'Borrowed', amount: 500, note: '', status: 'Open' }
       ],
       categories: ['Food', 'Transport', 'Bills', 'Shopping', 'School', 'Health', 'Savings', 'Other'],
-      incomeCategories: ['Salary', 'Allowance', 'Freelance', 'Gift', 'Business', 'Savings', 'Other']
+      incomeCategories: ['Salary', 'Allowance', 'Freelance', 'Gift', 'Business', 'Savings', 'Other'],
+      debtCategories: ['Borrowed', 'Lent']
     };
 
     const state = {
@@ -868,6 +922,8 @@
     const total = document.getElementById('total');
     const incomeTotal = document.getElementById('incomeTotal');
     const balanceTotal = document.getElementById('balanceTotal');
+    const totalBorrowedElement = document.getElementById('totalBorrowed');
+    const totalLentElement = document.getElementById('totalLent');
     const filterLabel = document.getElementById('filterLabel');
     const pieChart = document.getElementById('pieChart');
     const pieLegend = document.getElementById('pieLegend');
@@ -919,9 +975,12 @@
     }
 
     function renderCategoriesForType(type) {
-      const categories = type === 'income'
-        ? state.data.incomeCategories || fallbackData.incomeCategories
-        : state.data.categories || fallbackData.categories;
+      let categories = state.data.categories || fallbackData.categories;
+      if (type === 'income') {
+        categories = state.data.incomeCategories || fallbackData.incomeCategories;
+      } else if (type === 'debt') {
+        categories = state.data.debtCategories || fallbackData.debtCategories;
+      }
       categoryInput.innerHTML = categories
         .map(category => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`)
         .join('');
@@ -929,15 +988,25 @@
 
     function renderSummary() {
       const visible = getVisibleTransactions();
-      const expenses = visible.filter(item => item.type !== 'income');
+      const expenses = visible.filter(item => item.type === 'expense');
       const incomes = visible.filter(item => item.type === 'income');
+      const debts = visible.filter(item => item.type === 'debt');
+
       const spentTotal = sumAmounts(expenses);
       const incomeTotalValue = sumAmounts(incomes);
+
+      const currentBorrowed = sumAmounts(debts.filter(d => d.category === 'Borrowed' && d.status === 'Open'));
+      const currentLent = sumAmounts(debts.filter(d => d.category === 'Lent' && d.status === 'Open'));
+
       const categoryData = buildCategoryData(visible);
 
       total.textContent = peso.format(spentTotal).replace('PHP', '₱');
       incomeTotal.textContent = peso.format(incomeTotalValue).replace('PHP', '₱');
       balanceTotal.textContent = peso.format(incomeTotalValue - spentTotal).replace('PHP', '₱');
+
+      if (totalBorrowedElement) totalBorrowedElement.textContent = peso.format(currentBorrowed).replace('PHP', '₱');
+      if (totalLentElement) totalLentElement.textContent = peso.format(currentLent).replace('PHP', '₱');
+
       renderPie(categoryData);
     }
 
@@ -952,26 +1021,42 @@
         return;
       }
 
-      latest.innerHTML = expenses.map(expense => `
-        <article class="expense-row ${expense.type === 'income' ? 'income' : 'expense'}">
-          <div class="category-icon">${iconFor(expense.category)}</div>
-          <div class="expense-main">
-            <div class="expense-title">${escapeHtml(expense.title)}</div>
-            <div class="expense-date">${formatDate(expense.date)} · ${expense.type === 'income' ? 'Income' : 'Expense'}</div>
-          </div>
-          <div class="expense-side">
-            <div class="expense-amount">${expense.type === 'income' ? '+' : ''}${peso.format(expense.amount).replace('PHP', '₱')}</div>
-            <div class="row-actions" aria-label="Expense actions">
-              <button class="row-action edit" type="button" data-action="edit" data-id="${escapeHtml(expense.id)}" title="Edit ${escapeHtml(expense.title)}" aria-label="Edit ${escapeHtml(expense.title)}">
-                <svg width="16" height="16" viewBox="0 0 18 18" fill="none"><path d="M2 13.7V16h2.3L14.9 5.4l-2.3-2.3L2 13.7Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="m11.7 4 2.3 2.3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-              </button>
-              <button class="row-action delete" type="button" data-action="delete" data-id="${escapeHtml(expense.id)}" title="Delete ${escapeHtml(expense.title)}" aria-label="Delete ${escapeHtml(expense.title)}">
-                <svg width="16" height="16" viewBox="0 0 18 18" fill="none"><path d="M3 5h12M7 5V3h4v2M6 7v8M12 7v8M4.5 5l.8 11h7.4l.8-11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
+      latest.innerHTML = expenses.map(expense => {
+        const typeLabel = expense.type.charAt(0).toUpperCase() + expense.type.slice(1);
+        const isDebt = expense.type === 'debt';
+        const statusBadge = isDebt ? `<span class="status-badge ${expense.status.toLowerCase()}">${expense.status}</span>` : '';
+        const toggleAction = isDebt ? `
+          <button class="row-action toggle" type="button" data-action="toggle-status" data-id="${escapeHtml(expense.id)}" title="Toggle Status" aria-label="Toggle Status">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          </button>
+        ` : '';
+
+        let rowClass = 'expense';
+        if (expense.type === 'income') rowClass = 'income';
+        if (expense.type === 'debt') rowClass = 'debt';
+
+        return `
+          <article class="expense-row ${rowClass}">
+            <div class="category-icon">${iconFor(expense.category)}</div>
+            <div class="expense-main">
+              <div class="expense-title">${escapeHtml(expense.title)}${statusBadge}</div>
+              <div class="expense-date">${formatDate(expense.date)} · ${typeLabel}</div>
             </div>
-          </div>
-        </article>
-      `).join('');
+            <div class="expense-side">
+              <div class="expense-amount">${expense.type === 'income' ? '+' : ''}${peso.format(expense.amount).replace('PHP', '₱')}</div>
+              <div class="row-actions" aria-label="Expense actions">
+                ${toggleAction}
+                <button class="row-action edit" type="button" data-action="edit" data-id="${escapeHtml(expense.id)}" title="Edit ${escapeHtml(expense.title)}" aria-label="Edit ${escapeHtml(expense.title)}">
+                  <svg width="16" height="16" viewBox="0 0 18 18" fill="none"><path d="M2 13.7V16h2.3L14.9 5.4l-2.3-2.3L2 13.7Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="m11.7 4 2.3 2.3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                </button>
+                <button class="row-action delete" type="button" data-action="delete" data-id="${escapeHtml(expense.id)}" title="Delete ${escapeHtml(expense.title)}" aria-label="Delete ${escapeHtml(expense.title)}">
+                  <svg width="16" height="16" viewBox="0 0 18 18" fill="none"><path d="M3 5h12M7 5V3h4v2M6 7v8M12 7v8M4.5 5l.8 11h7.4l.8-11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+              </div>
+            </div>
+          </article>
+        `;
+      }).join('');
     }
 
     function openDialog() {
@@ -1040,6 +1125,8 @@
         const runner = google.script.run.withSuccessHandler(onSuccess).withFailureHandler(onFailure);
         if (expense.type === 'income') {
           runner.updateIncome(expense);
+        } else if (expense.type === 'debt') {
+          runner.updateDebt(expense);
         } else {
           runner.updateExpense(expense);
         }
@@ -1049,6 +1136,8 @@
       const runner = google.script.run.withSuccessHandler(onSuccess).withFailureHandler(onFailure);
       if (expense.type === 'income') {
         runner.addIncome(expense);
+      } else if (expense.type === 'debt') {
+        runner.addDebt(expense);
       } else {
         runner.addExpense(expense);
       }
@@ -1066,6 +1155,11 @@
 
       if (button.dataset.action === 'edit') {
         openEditDialog(expense);
+        return;
+      }
+
+      if (button.dataset.action === 'toggle-status') {
+        toggleStatusById(expense);
         return;
       }
 
@@ -1091,9 +1185,29 @@
 
       if (expense.type === 'income') {
         runner.deleteIncome(expense.id);
+      } else if (expense.type === 'debt') {
+        runner.deleteDebt(expense.id);
       } else {
         runner.deleteExpense(expense.id);
       }
+    }
+
+    function toggleStatusById(expense) {
+      if (!hasAppsScript) {
+        const nextStatus = expense.status === 'Paid' ? 'Open' : 'Paid';
+        render(replaceLocalTransaction({ ...expense, status: nextStatus }));
+        showSuccess('Status toggled', 'Preview mode only.');
+        return;
+      }
+
+      showBusy('Toggling status...');
+      google.script.run
+        .withSuccessHandler(data => {
+          render(data);
+          showSuccess('Status toggled');
+        })
+        .withFailureHandler(error => showError(error.message || 'Could not toggle status.'))
+        .toggleDebtStatus(expense.id);
     }
 
     function findExpense(id) {
@@ -1113,15 +1227,21 @@
     }
 
     function rebuildLocalData(transactions) {
-      const expenses = transactions.filter(item => item.type !== 'income');
+      const expenses = transactions.filter(item => item.type === 'expense');
       const incomes = transactions.filter(item => item.type === 'income');
+      const debts = transactions.filter(item => item.type === 'debt');
+
       const total = expenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
       const incomeTotalValue = incomes.reduce((sum, income) => sum + Number(income.amount || 0), 0);
+      const totalBorrowed = debts.filter(d => d.category === 'Borrowed' && d.status === 'Open').reduce((sum, d) => sum + Number(d.amount || 0), 0);
+      const totalLent = debts.filter(d => d.category === 'Lent' && d.status === 'Open').reduce((sum, d) => sum + Number(d.amount || 0), 0);
 
       return {
         ...state.data,
         total,
         incomeTotal: incomeTotalValue,
+        totalBorrowed,
+        totalLent,
         balance: incomeTotalValue - total,
         transactions,
         latest: transactions,
@@ -1131,10 +1251,13 @@
     function getVisibleTransactions() {
       const transactions = state.data.transactions || state.data.latest || [];
       if (state.filter === 'expense') {
-        return transactions.filter(item => item.type !== 'income');
+        return transactions.filter(item => item.type === 'expense');
       }
       if (state.filter === 'income') {
         return transactions.filter(item => item.type === 'income');
+      }
+      if (state.filter === 'debt') {
+        return transactions.filter(item => item.type === 'debt');
       }
       return transactions;
     }
@@ -1218,7 +1341,8 @@
         inputOptions: {
           all: 'All',
           expense: 'Expenses',
-          income: 'Income'
+          income: 'Income',
+          debt: 'Debts'
         },
         showCancelButton: true,
         confirmButtonText: 'Apply',
@@ -1237,8 +1361,8 @@
 
     function applyFilter(filter) {
       const normalized = String(filter || '').toLowerCase();
-      state.filter = ['all', 'expense', 'expenses', 'income'].includes(normalized)
-        ? normalized.replace('expenses', 'expense')
+      state.filter = ['all', 'expense', 'expenses', 'income', 'debt', 'debts'].includes(normalized)
+        ? normalized.replace('expenses', 'expense').replace('debts', 'debt')
         : 'all';
       renderFilterLabel();
       renderSummary();
@@ -1252,6 +1376,7 @@
     function getFilterLabel(filter) {
       if (filter === 'expense') return 'Expenses';
       if (filter === 'income') return 'Income';
+      if (filter === 'debt') return 'Debts';
       return 'All';
     }
 
@@ -1333,6 +1458,8 @@
 
     function iconFor(category) {
       const key = String(category || '').toLowerCase();
+      if (key.includes('borrowed')) return '<span>🤝</span>';
+      if (key.includes('lent')) return '<span>💸</span>';
       if (key.includes('salary') || key.includes('allowance') || key.includes('freelance') || key.includes('gift') || key.includes('business')) return '<span>+</span>';
       if (key.includes('food')) return '<svg width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M8 2v24M4 2v8a4 4 0 0 0 8 0V2M20 2v24M17 2v11h6V2" stroke="black" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
       if (key.includes('transport')) return '<svg width="30" height="24" viewBox="0 0 30 24" fill="none"><path d="M5 18h20l-2-10H7L5 18Z" stroke="black" stroke-width="3" stroke-linejoin="round"/><path d="M8 18v3M22 18v3M9 12h12" stroke="black" stroke-width="3" stroke-linecap="round"/></svg>';
@@ -1402,7 +1529,7 @@
 
       const result = await Swal.fire({
         icon: 'warning',
-        title: `Delete ${expense.type === 'income' ? 'income' : 'expense'}?`,
+        title: `Delete ${expense.type}?`,
         text: expense.title,
         showCancelButton: true,
         confirmButtonText: 'Delete',
